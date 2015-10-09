@@ -1,6 +1,6 @@
 <html>
 <head>
-<title></title>
+<title>Lambda-class T-4a Shuttle</title>
 <style type="text/css">
 @font-face {font-family: Bookman; src: url(bookmanai.ttf);}
 table {font-family: Arial; font-size: 10px; color: #D0D0D0;}
@@ -194,29 +194,31 @@ function step () {
 };
 
 function writespeech () {
-		var speechtimer = movecounter * 100 + timer;
-		ctx[2].clearRect(0, 0, 800, 600);
-		ctx[2].save();
-		ctx[2].globalAlpha = Math.sin(Math.max((1.2 * speechtimer / 500 - 0.2) * pi, 0));
-		ctx[2].font = "24px Bookman";
-		var line = [[], [], []];
-		var allspeech = speechtext.join("").split(" ");
-		for (var i = 0; i < 3; i++) {
-			while (ctx[2].measureText(line[i].join(" ")).width + ctx[2].measureText(" " + allspeech[0]).width < 770 &&  !(allspeech.length == 0)) {
-				line[i].push(allspeech.shift());
-			};
-			line[i] = line[i].join(" ");
+	var speechtimer = movecounter * 100 + timer;
+	ctx[2].clearRect(0, 0, 800, 600);
+	ctx[2].save();
+	ctx[2].globalAlpha = Math.sin(Math.max((1.2 * speechtimer / 500 - 0.2) * pi, 0));
+	ctx[2].font = "24px Bookman";
+	var line = [[], [], []];
+	var allspeech = speechtext.join("").split(" ");
+	for (var i = 0; i < 3; i++) {
+		while (ctx[2].measureText(line[i].join(" ")).width + ctx[2].measureText(" " + allspeech[0]).width < 770 &&  !(allspeech.length == 0)) {
+			line[i].push(allspeech.shift());
 		};
-
-		ctx[2].fillStyle = "#404040";
-		ctx[2].fillText(line[0], 10, 33);
-		ctx[2].fillText(line[1], 20, 63);
-		ctx[2].fillText(line[2], 30, 93);
-		ctx[2].fillStyle = "white";
-		ctx[2].fillText(line[0], 15, 30);
-		ctx[2].fillText(line[1], 25, 60);
-		ctx[2].fillText(line[2], 35, 90);
-		ctx[2].restore();
+		line[i] = line[i].join(" ");
+	};
+	ctx[2].fillStyle = "#404040";
+	ctx[2].fillText(line[0], 10, 33);
+	ctx[2].fillText(line[1], 20, 63);
+	ctx[2].fillText(line[2], 30, 93);
+	ctx[2].fillStyle = "white";
+	ctx[2].fillText(line[0], 15, 30);
+	ctx[2].fillText(line[1], 25, 60);
+	ctx[2].fillText(line[2], 35, 90);
+	ctx[2].restore();
+	if (movecounter == 1) {
+		document.title = speechtext[1].substr(5);
+	};
 	if (movecounter > 4) {
 		speech();
 		movecounter = 0;
@@ -386,29 +388,37 @@ speechParts = [[
 	"Exalted",
 	"Glacial",
 	"Grandiose",
-	"Imposing",
+
+	"Imposing",
 	"Iridescent",
 	"Ivory",
-	"Luminous",
+
+	"Luminous",
 	"Majestic",
 	"Magnificent",
 	"Massive",
-	"Monumental",
+
+
+	"Monumental",
 	"Ominous",
 	"Opalescent",
 	"Pale",
 	"Pasty",
 	"Pearlescent",
 	"Pompous",
-	"Porcelain",
+
+	"Porcelain",
 	"Prismatic",
 	"Radiant",
 	"Regal",
-	"Resplendent",
+
+	"Resplendent",
 	"Scintillating",
 	"Snowy",
-	"Stately",
-	"Stupendous",
+
+	"Stately",
+
+	"Stupendous",
 	"Sublime",
 	"Astounding",
 	"Daunting",
@@ -431,12 +441,14 @@ speechParts = [[
 	"Jovian",
 	"Lunar",
 	"Orbital",
-	"Planetary",
+
+	"Planetary",
 	"Solar",
 	"Space",
 	"Star",
 	"Stellar",
-	"Void",
+
+	"Void",
 	"Asteroid",
 	"Comet",
 	"Eclipse",
