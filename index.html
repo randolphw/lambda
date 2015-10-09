@@ -1,0 +1,520 @@
+<html>
+<head>
+<title></title>
+<style type="text/css">
+@font-face {font-family: Bookman; src: url(bookmanai.ttf);}
+table {font-family: Arial; font-size: 10px; color: #D0D0D0;}
+a {color: #D0D0D0;}
+canvas {position: absolute; top: 10px; left: 65px; border: 1px solid #424242;}
+</style>
+<script type="text/javascript">
+<!--
+var pi = Math.PI;
+var rBank = [0, 80, 130, 180];
+var rTurn = [0, 35, 63, 90];
+
+timer = 0;
+movecounter = -1;
+speechtext = "";
+speechindex = [0, 0, 0, 0, 0];
+oldspeech = [0, 0, 0, 0, 0];
+
+var ship = {
+	name: [],
+	base: 80,
+	protrusions: 2,
+	offset: 20,
+	width: 123,
+	height: 84,
+	x: 400,
+	y: 540,
+	r: -0.5 * pi
+};
+ship.img = new Image();
+ship.img.src = "images/lambda.png";
+ship.img.onload = function() {initialize();};
+
+var dial = [
+	["turn", 1, -1],
+	["bank", 1, -1],
+	["straight", 1],
+	["bank", 1, 1],
+	["turn", 1, 1],
+	["turn", 2, -1],
+	["bank", 2, -1],
+	["straight", 2],
+	["bank", 2, 1],
+	["turn", 2, 1],
+	["turn", 3, -1],
+	["bank", 3, -1],
+	["straight", 3],
+	["bank", 3, 1],
+	["turn", 3, 1],
+];
+
+function initialize () {
+	layer0 = document.getElementById("layer0");
+	layer0.style.zIndex = 0;
+	layer1 = document.getElementById("layer1");
+	layer1.style.zIndex = 3;
+	layer2 = document.getElementById("layer2");
+	layer2.style.zIndex = 5;
+	ctx = [layer0.getContext("2d"), layer1.getContext("2d"), layer2.getContext("2d")];
+	starfield();
+	reset(1);
+	speech();
+	animate();
+};
+
+function starfield () {
+	ctx[0].fillStyle = "white";
+	for (var i = 0; i < 42; i++) {
+		var x = 10 + Math.random() * 780;
+		var y = 10 + Math.random() * 580;
+		var r = Math.random() * 5;
+		for (var size = r; size > 0; size--) {
+			ctx[0].beginPath();
+			ctx[0].moveTo(x, y);
+			ctx[0].arc (x, y, size, 0, 2 * pi);
+			ctx[0].globalAlpha = 1/size;
+			ctx[0].fill();
+		};
+	};
+};
+
+function reset (z) {
+	ctx[z].setTransform(1, 0, 0, 1, 0, 0);
+	ctx[z].clearRect(0, 0, 800, 600);
+	ctx[z].translate(400, 540);
+};
+
+function drawShip (x, y, alpha) {
+	ctx[1].globalAlpha = alpha;
+	ctx[1].drawImage(ship.img, x - ship.base / 2 - ship.offset, y - ship.protrusions, ship.width, ship.height);
+	glow(x, y + ship.height - 12, alpha);
+};
+
+function oCoords (r, direction, radius) {
+	r = direction * r;
+	var distance = 80 + ((r == 0) ? radius : 0);
+	var mtxA = [	[1, 0, 0],
+			[0, 1, -direction * radius],
+			[0, 0, 1]	];
+	var mtxB = [	[Math.cos(r), -Math.sin(r), 0],
+			[Math.sin(r), Math.cos(r), 0],
+			[0, 0, 1]	];
+	var mtxC = [	[1, 0, 0],
+			[0, 1, direction * radius],
+			[0, 0, 1]	];
+	var mtxD = [	[1, 0, distance * Math.cos(r)],
+			[0, 1, distance * Math.sin(r)],
+			[0, 0, 1]	];
+	var mtxR = [	[Math.cos(ship.r - r), -Math.sin(ship.r - r), 0],
+			[Math.sin(ship.r - r), Math.cos(ship.r - r), 0],
+			[0, 0, 1]	];
+	var mtxT = [	[1, 0, ship.x],
+			[0, 1, ship.y],
+			[0, 0, 1]	];
+	var coords = mtxToCoords(mtxMult([[[0], [0], [1]], mtxMult([mtxA, mtxB, mtxC, mtxD])]));
+	var newcoords = mtxToCoords(mtxMult([coords, mtxMult([mtxR, mtxT])]));
+	return newcoords;
+};
+
+function mtxToCoords (mtx) {
+	return [[mtx[0][0]], [mtx[1][0]], [[1]]];
+};
+
+function mtxMult (mtxlist) {
+	if (mtxlist.length < 2) {
+		return false;
+	} else {
+		for (var i = 1; i < mtxlist.length; i++) {
+			var A = mtxlist[i];
+			var B = mtxlist[i-1];
+			var AB = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+			for (var j = 0; j < A.length; j++) {
+				for (var k = 0; k < A[j].length; k++) {
+					for (var m = 0; m < B.length; m++) {
+						AB[j][k] += A[j][m] * B[m][k];
+					};
+				};
+			};
+			mtxlist[i] = AB;
+		};
+		return mtxlist[mtxlist.length-1];
+	};
+};
+
+function orient (flightplan) {
+	var distance = flightplan[1];
+	switch (flightplan[0]) {
+		case "bank":
+			var radius = rBank[distance];
+			var arc = 0.25;
+			break;
+		case "turn":
+			var radius = rTurn[distance];
+			var arc = 0.5;
+			break;
+	};
+	if (flightplan[0] == "straight") {
+		ctx[1].translate(0, distance * -40 - ship.base);
+		var coords = oCoords(0, 1, distance * 40);
+	} else {
+		var direction = flightplan[2];
+		ctx[1].translate(direction * radius, 0);
+		ctx[1].rotate(direction * arc * pi);
+		ctx[1].translate(direction * -radius, -ship.base);
+
+		ship.r += direction * arc * pi;
+		if (ship.r > 2 * pi) {
+			ship.r -= 2 * pi;
+		};
+		if (ship.r < -2 * pi) {
+			ship.r += 2 * pi;
+		};
+		var coords = oCoords(arc * pi, direction, radius);
+	};
+		ship.x = coords[0][0];
+		ship.y = coords[1][0];
+};
+
+function step () {
+	switch (ship.dial[0]) {
+		case "bank":
+			animateBank(ship.dial[1], ship.dial[2]);
+			break;
+		case "straight":
+			animateStraight(ship.dial[1]);
+			break;
+		case "turn":
+			animateTurn(ship.dial[1], ship.dial[2]);
+			break;
+	};
+};
+
+function writespeech () {
+		var speechtimer = movecounter * 100 + timer;
+		ctx[2].clearRect(0, 0, 800, 600);
+		ctx[2].save();
+		ctx[2].globalAlpha = Math.sin(Math.max((1.2 * speechtimer / 500 - 0.2) * pi, 0));
+		ctx[2].font = "24px Bookman";
+		var line = [[], [], []];
+		var allspeech = speechtext.join("").split(" ");
+		for (var i = 0; i < 3; i++) {
+			while (ctx[2].measureText(line[i].join(" ")).width + ctx[2].measureText(" " + allspeech[0]).width < 770 &&  !(allspeech.length == 0)) {
+				line[i].push(allspeech.shift());
+			};
+			line[i] = line[i].join(" ");
+		};
+
+		ctx[2].fillStyle = "#404040";
+		ctx[2].fillText(line[0], 10, 33);
+		ctx[2].fillText(line[1], 20, 63);
+		ctx[2].fillText(line[2], 30, 93);
+		ctx[2].fillStyle = "white";
+		ctx[2].fillText(line[0], 15, 30);
+		ctx[2].fillText(line[1], 25, 60);
+		ctx[2].fillText(line[2], 35, 90);
+		ctx[2].restore();
+	if (movecounter > 4) {
+		speech();
+		movecounter = 0;
+	};
+};
+
+function animate () {
+	movecounter++;
+	if (ship.x > -120 && ship.x < 920 && ship.y > -120 && ship.y < 720) {
+		adrift = 0;
+		ship.dial = dial[Math.round(Math.random() * (dial.length - 1))];
+	} else {
+		adrift++;
+		if (adrift > 2) {
+			reset(1);
+			ship.x = 400;
+			ship.y = 540;
+			ship.r = -0.5 * pi;
+			switch (Math.round(Math.random() * 3)) {
+				case 0:
+					orient(["turn", 1, -1]);
+					orient(["turn", 1, -1]);
+					orient(["straight", 1]);
+					orient(["turn", 1, -1]);
+					orient(["turn", 1, -1]);
+					break;
+				case 1:
+					orient(["turn", 1, 1]);
+					orient(["turn", 1, -1]);
+					orient(["straight", 11]);
+					orient(["turn", 1, -1]);
+					orient(["turn", 1, -1]);
+					break;
+				case 2:
+					orient(["turn", 3, 1]);
+					orient(["straight", 7]);
+					orient(["turn", 1, -1]);
+					orient(["turn", 1, -1]);
+					break;
+				case 3:
+					orient(["turn", 3, -1]);
+					orient(["straight", 7]);
+					orient(["turn", 1, 1]);
+					orient(["turn", 1, 1]);
+					break;
+			};
+			ship.dial = dial[Math.round(Math.random() * (dial.length - 1))];
+		} else {
+			var coinflip = (Math.round(Math.random() * 1) - 0.5) * 2;
+			orient(["turn", 1, coinflip]);
+			orient(["turn", 1, coinflip]);
+			ship.dial = ["straight", 3];
+		};
+	};
+		timer = 0;
+		stepVar = setInterval(function(){step()}, 35);
+};
+
+function glow (x, y, alpha) {
+	ctx[1].save;
+	var beam = 6;
+	ctx[1].lineWidth = beam;
+	ctx[1].globalAlpha = 0.7 * Math.cos(timer / 100) * alpha;
+	ctx[1].lineWidth = 2;
+	ctx[1].strokeStyle = "#FFFFFF";
+	ctx[1].beginPath();
+	ctx[1].moveTo(x + 7, y);
+	ctx[1].lineTo(x + 18, y);
+	ctx[1].stroke();
+	ctx[1].beginPath();
+	ctx[1].moveTo(x - 18, y);
+	ctx[1].lineTo(x - 7, y);
+	ctx[1].stroke();
+	ctx[1].lineWidth = 4;
+	ctx[1].strokeStyle = "#A0EFFF";
+	ctx[1].beginPath();
+	ctx[1].moveTo(x + 8, y);
+	ctx[1].bezierCurveTo(x + 8, y + 2, x + 17, y + 2, x + 17, y);
+	ctx[1].stroke();
+	ctx[1].beginPath();
+	ctx[1].moveTo(x - 8, y);
+	ctx[1].bezierCurveTo(x - 8, y + 2, x - 17, y + 2, x - 17, y);
+	ctx[1].stroke();
+	ctx[1].restore;
+};
+
+function animateBank (distance, direction) {
+	ctx[1].save();
+	reset(1);
+	ctx[1].restore();
+	var radius = rBank[distance];
+	ctx[1].save();
+	ctx[1].translate(direction * radius, 0);
+	ctx[1].rotate(timer * direction * 0.0025 * pi);
+	var x = direction * -radius;
+	var y = timer / 100 * -ship.base;
+	drawShip(x, y, 1);
+	ctx[1].restore();
+	if (timer >= 100) {
+		orient(ship.dial);
+		clearInterval(stepVar);
+		animate();
+	} else {
+		timer += 2;
+	};
+	writespeech();
+};
+
+function animateStraight (distance) {
+	ctx[1].save();
+	reset(1);
+	ctx[1].restore();
+	ctx[1].save();
+	drawShip(0, timer / 100 * -ship.base + timer / 100 * distance * -40, 1);
+	ctx[1].restore();
+	if (timer >= 100) {
+		orient(ship.dial);
+		clearInterval(stepVar);
+		animate();
+	} else {
+		timer += 2;
+	};
+	writespeech();
+};
+
+function animateTurn (distance, direction) {
+	ctx[1].save();
+	reset(1);
+	ctx[1].restore();
+	var radius = rTurn[distance];
+	ctx[1].save();
+	ctx[1].translate(direction * radius, 0);
+	ctx[1].rotate(timer * direction * 0.005 * pi);
+	drawShip(direction * -radius, timer / 100 * -ship.base, 1);
+	ctx[1].restore();
+	if (timer >= 100) {
+		orient(ship.dial);
+		clearInterval(stepVar);
+		animate();
+	} else {
+		timer += 2;
+	};
+	writespeech();
+};
+
+function speech () {
+	var newspeech = [0, 0, 0, 0, 0];
+	for (var i = 0; i < 5; i++) {
+		newspeech[i] = Math.floor(Math.random() * speechParts[i].length);
+		while (newspeech[i] == speechindex[i] || newspeech[i] == oldspeech[i]) {
+			newspeech[i] = Math.floor(Math.random() * speechParts[i].length);
+		};
+	};
+	oldspeech = speechindex.slice(0);
+	speechindex = newspeech.slice(0);
+	speechtext = [speechParts[3][speechindex[3]], " the " + speechParts[0][speechindex[0]] + " " + speechParts[1][speechindex[1]] + " " + speechParts[2][speechindex[2]], " " + speechParts[4][speechindex[4]]];
+};
+
+speechParts = [[
+	"Alabaster",
+	"Albino",
+	"August",
+	"Awesome",
+	"Dignified",
+	"Dire",
+	"Enigmatic",
+	"Exalted",
+	"Glacial",
+	"Grandiose",
+	"Imposing",
+	"Iridescent",
+	"Ivory",
+	"Luminous",
+	"Majestic",
+	"Magnificent",
+	"Massive",
+	"Monumental",
+	"Ominous",
+	"Opalescent",
+	"Pale",
+	"Pasty",
+	"Pearlescent",
+	"Pompous",
+	"Porcelain",
+	"Prismatic",
+	"Radiant",
+	"Regal",
+	"Resplendent",
+	"Scintillating",
+	"Snowy",
+	"Stately",
+	"Stupendous",
+	"Sublime",
+	"Astounding",
+	"Daunting",
+	"Elegant",
+	"Glorious",
+	"Imperious",
+	"Monolithic",
+	"Noble",
+	"Peerless",
+	"Prodigious",
+	"Splendid",
+	"Transcendent",
+	"Wondrous"],
+	[
+	"Astral",
+	"Celestial",
+	"Cosmic",
+	"Galactic",
+	"Heavenly",
+	"Jovian",
+	"Lunar",
+	"Orbital",
+	"Planetary",
+	"Solar",
+	"Space",
+	"Star",
+	"Stellar",
+	"Void",
+	"Asteroid",
+	"Comet",
+	"Eclipse",
+	"Meteor",
+	"Moon",
+	"Vacuum"],
+	[
+	"Bison",
+	"Buffalo",
+	"Capybara",
+	"Elephant",
+	"Gaur",
+	"Hippopotamus",
+	"Mammoth",
+	"Manatee",
+	"Narwhal",
+	"Orca",
+	"Ox",
+	"Rhinoceros",
+	"Sunfish",
+	"Walrus",
+	"Waterbuck",
+	"Whale",
+	"Wildebeest",
+	"Afanc",
+	"Boar",
+	"Bull",
+	"Cow",
+	"Porpoise",
+	"Water Buffalo",
+	"Zebu"],
+
+[
+"Agitated,",
+"Angling its deflector screens,",
+"Deliberately, almost methodically,",
+"Expertly cresting the gravitic tides,",
+"Frill fully erect,",
+"Heedless of the micrometeorites,",
+"Ion engines pulsing powerfully,",
+"Quickly adjusting to the stellar wind,",
+"Relying on specialized senses a thousand times more keen than a bloodhound's,",
+"Rousing from its reverie,",
+"Sounding the distinctive, guttural trill of its kind,",
+"Suddenly alert,",
+"Taking an aggressive posture,",
+"Weary with exertion,",
+"With wings unfurled,"
+],
+[
+"begins the perilous journey back to its nesting grounds.",
+"charts a meandering path through the asteroid belt.",
+"churns the aether in a frenzy, maddened by the scent of blood.",
+"circles warily, disturbed by our film crew.",
+"corrects its course; the destination: the ancestral Sienar spawning grounds.",
+"drifts right past the signal beacon, compounding our mystery.",
+"finishes basking in the fitful radiation of the system's pulsar.",
+"gathers itself to pounce upon its hapless prey.",
+"lashes mightily against the unyielding pull of a nearby singularity.",
+"prepares to charge, all too aware of the rival intruding upon its territory.",
+"rears dramatically in a display of dominance.",
+"searches for the source of the mating call.",
+"sweeps the area for potential threats.",
+"tastes the air, spooked by some unseen menace."
+]];
+-->
+</script>
+</head>
+<body bgcolor=black>
+<canvas id="layer0" width="800" height="600"></canvas>
+<canvas id="layer1" width="800" height="600"></canvas>
+<canvas id="layer2" width="800" height="600"></canvas>
+<table>
+<tr height=600></tr>
+<tr>
+<td width=50></td>
+<td>Majestic Space Adjectives inspired by / stolen from geordan's <a href="http://codepen.io/geordan/full/quneg">name generator</a>. Lambda-class T-4a shuttle graphic by silentubiquity.</td>
+</tr>
+</table>
+</body>
+</html>
